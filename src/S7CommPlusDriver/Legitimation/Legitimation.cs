@@ -116,34 +116,15 @@ namespace S7CommPlusDriver
             }
 
             // Get current protection level
-            var getVarSubstreamedReq = new GetVarSubstreamedRequest(ProtocolVersion.V2);
-            getVarSubstreamedReq.InObjectId = m_SessionId;
-            getVarSubstreamedReq.SessionId = m_SessionId;
-            getVarSubstreamedReq.Address = Ids.EffectiveProtectionLevel;
-            int res = SendS7plusFunctionObject(getVarSubstreamedReq);
+            UInt32 accessLevel;
+            int res = GetEffectiveProtectionLevel(out accessLevel);
             if (res != 0)
             {
                 m_client.Disconnect();
                 return res;
             }
-            m_LastError = 0;
-            WaitForNewS7plusReceived(m_ReadTimeout);
-            if (m_LastError != 0)
-            {
-                m_client.Disconnect();
-                return m_LastError;
-            }
-
-            var getVarSubstreamedRes = GetVarSubstreamedResponse.DeserializeFromPdu(m_ReceivedPDU);
-            if (getVarSubstreamedRes == null)
-            {
-                Console.WriteLine("S7CommPlusConnection - Legitimate: GetVarSubstreamedResponse with Error!");
-                m_client.Disconnect();
-                return S7Consts.errIsoInvalidPDU;
-            }
 
             // Check access level
-            UInt32 accessLevel = (getVarSubstreamedRes.Value as ValueUDInt).GetValue();
             if (accessLevel > AccessLevel.FullAccess && password != "")
             {
                 // Legitimate
@@ -162,6 +143,41 @@ namespace S7CommPlusDriver
                 Console.WriteLine("S7CommPlusConnection - Legitimate: Warning: Access level is not fullaccess but no password set!");
             }
 
+            return 0;
+        }
+
+        /// <summary>
+        /// Reads the effective protection level of the session (values of AccessLevel:
+        /// 1 = full access ... 4 = no access). After a successful legitimation it reflects the granted level.
+        /// </summary>
+        /// <param name="accessLevel">effective protection level</param>
+        /// <returns>error code (0 = ok)</returns>
+        public int GetEffectiveProtectionLevel(out UInt32 accessLevel)
+        {
+            accessLevel = 0;
+            var getVarSubstreamedReq = new GetVarSubstreamedRequest(ProtocolVersion.V2);
+            getVarSubstreamedReq.InObjectId = m_SessionId;
+            getVarSubstreamedReq.SessionId = m_SessionId;
+            getVarSubstreamedReq.Address = Ids.EffectiveProtectionLevel;
+            int res = SendS7plusFunctionObject(getVarSubstreamedReq);
+            if (res != 0)
+            {
+                return res;
+            }
+            m_LastError = 0;
+            WaitForNewS7plusReceived(m_ReadTimeout);
+            if (m_LastError != 0)
+            {
+                return m_LastError;
+            }
+
+            var getVarSubstreamedRes = GetVarSubstreamedResponse.DeserializeFromPdu(m_ReceivedPDU);
+            if (getVarSubstreamedRes == null || !(getVarSubstreamedRes.Value is ValueUDInt))
+            {
+                Console.WriteLine("S7CommPlusConnection - GetEffectiveProtectionLevel: GetVarSubstreamedResponse with Error!");
+                return S7Consts.errIsoInvalidPDU;
+            }
+            accessLevel = (getVarSubstreamedRes.Value as ValueUDInt).GetValue();
             return 0;
         }
 

@@ -80,7 +80,17 @@ namespace S7CommPlusDriver
 					try
 					{
 						CreateSocket();
-						TCPSocket.Connect(Host, Port);
+						// Connect with timeout: a blocking Connect waits for the OS retries (about 21 s) on an unreachable host.
+						IAsyncResult result = TCPSocket.BeginConnect(Host, Port, null, null);
+						if (result.AsyncWaitHandle.WaitOne(_ConnectTimeout, true))
+						{
+							TCPSocket.EndConnect(result);
+						}
+						else
+						{
+							Close();
+							LastError = S7Consts.errTCPConnectionTimeout;
+						}
 					}
 					catch
 					{

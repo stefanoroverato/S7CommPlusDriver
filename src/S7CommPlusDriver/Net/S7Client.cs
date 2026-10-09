@@ -78,6 +78,10 @@ namespace S7CommPlusDriver
 		DateTime m_DateTimeStarted;
 		Native.SSL_CTX_keylog_cb_func m_keylog_cb;
 
+		// Directory for the TLS key log (key_YYYYMMDD_hhmmss.log, for Wireshark). The file holds the session
+		// secrets, so it is written only when a directory is set explicitly. null (default) = no key log.
+		public static string KeyLogDirectory = null;
+
 		// OpenSSL möchte Daten auf den Socket aussenden.
 		public void WriteData(byte[] pData, int dataLength)
 		{
@@ -106,7 +110,9 @@ namespace S7CommPlusDriver
 		// in eine Wireshark Aufzeichnung eingefügt werden um dort die TLS Kommunikation zu entschlüsseln.
 		public void SSL_CTX_keylog_cb(IntPtr ssl, string line)
 		{
-			string filename = "key_" + m_DateTimeStarted.ToString("yyyyMMdd_HHmmss") + ".log";
+			string dir = KeyLogDirectory;
+			if (String.IsNullOrEmpty(dir)) return;
+			string filename = Path.Combine(dir, "key_" + m_DateTimeStarted.ToString("yyyyMMdd_HHmmss") + ".log");
 			StreamWriter file = new StreamWriter(filename, append: true);
 			file.WriteLine(line);
 			file.Close();
@@ -138,9 +144,12 @@ namespace S7CommPlusDriver
 				m_sslconn = new OpenSSLConnector(m_ptr_ctx, this);
 				m_sslconn.ExpectConnect();
 
-				// Keylog callback setzen
-				m_keylog_cb = new Native.SSL_CTX_keylog_cb_func(SSL_CTX_keylog_cb);
-				Native.SSL_CTX_set_keylog_callback(m_ptr_ctx, m_keylog_cb);
+				// Keylog callback setzen (nur mit KeyLogDirectory)
+				if (!String.IsNullOrEmpty(KeyLogDirectory))
+				{
+					m_keylog_cb = new Native.SSL_CTX_keylog_cb_func(SSL_CTX_keylog_cb);
+					Native.SSL_CTX_set_keylog_callback(m_ptr_ctx, m_keylog_cb);
+				}
 
 				m_SslActive = true;
 			} 
@@ -673,6 +682,8 @@ namespace S7CommPlusDriver
 			set
 			{
 				_ConnTimeout = value;
+				if (Socket != null)
+					Socket.ConnectTimeout = value;
 			}
 		}
 

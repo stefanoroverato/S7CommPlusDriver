@@ -58,6 +58,12 @@ namespace S7CommPlusDriver
         #region Public Members
         public int m_LastError = 0;
 
+        /// <summary>
+        /// Identification of the PLC from the session setup, e.g. "1;6ES7 511-1AK02-0AB0 ;V2.9"
+        /// (order number and firmware version). Empty before Connect.
+        /// </summary>
+        public string SessionVersionPAOMString { get; private set; } = "";
+
         #endregion
 
         #region Private Methods
@@ -400,6 +406,7 @@ namespace S7CommPlusDriver
             int Elapsed = Environment.TickCount;
             m_client = new S7Client();
             m_client.OnDataReceived = this.OnDataReceived;
+            m_client.ConnTimeout = m_ReadTimeout;
 
             m_client.SetConnectionParams(address, 0x0600, Encoding.ASCII.GetBytes("SIMATIC-ROOT-HMI"));
             res = m_client.Connect();
@@ -478,6 +485,7 @@ namespace S7CommPlusDriver
             // Evaluate Struct 314
             PValue sval = createObjRes.ResponseObject.GetAttribute(Ids.ServerSessionVersion);
             ValueStruct serverSession = (ValueStruct)sval;
+            SessionVersionPAOMString = (serverSession.GetStructElement((uint)Ids.LID_SessionVersionSystemPAOMString) as ValueWString)?.GetValue() ?? "";
 
             #endregion
 
